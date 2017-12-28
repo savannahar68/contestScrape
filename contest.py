@@ -5,28 +5,18 @@ from dateutil import tz
 import string
 import re
 from prettytable import PrettyTable
-#related to google calender 
-import httplib2
-import os
-
 from apiclient import discovery
-from oauth2client import client
-from oauth2client import tools
-from oauth2client.file import Storage
+from httplib2 import Http
+from oauth2client import file, client, tools
 
-try:
-    import argparse
-    flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
-except ImportError:
-    flags = None
-
-# If modifying these scopes, delete your previously saved credentials
-# at ~/.credentials/calendar-python-quickstart.json
 SCOPES = 'https://www.googleapis.com/auth/calendar'
-CLIENT_SECRET_FILE = 'client_secret.json'
-APPLICATION_NAME = 'Google Calendar API'
-
-
+store = file.Storage('storage.json')
+creds = store.get()
+if not creds or creds.invalid:
+	flow = client.flow_from_clientsecrets('client_secret.json', SCOPES)
+	creds = tools.run_flow(flow, store)
+GCAL = discovery.build('calendar', 'v3', http=creds.authorize(Http()))
+GMT_OFF = '+05:30'      # PDT/MST/GMT+5:30
 
 #convert to local time
 def utc_India_hackerrank(utc_time_str):
@@ -53,6 +43,20 @@ def hackerrankPage(pageurl):
 		contest_start_time = links.findChild('meta', {'itemprop': 'startDate'})
 		contest_end_time = links.findChild('meta', {'itemprop': 'endDate'})
 		if(contest_start_time and contest_end_time):
+			#print contest_start_time['content']
+			dt = datetime.strptime(utc_India_hackerrank(contest_start_time['content']) , '%H:%M:%S %d-%m-%Y')
+			sttime = dt.strftime("%Y-%m-%dT%H:%M:00")
+			et = datetime.strptime(utc_India_hackerrank(contest_end_time['content']) , '%H:%M:%S %d-%m-%Y')
+			ettime = et.strftime("%Y-%m-%dT%H:%M:00")
+			EVENT = {
+			    'summary': contest_name,
+			    'start':  {'dateTime': sttime+'%s' % GMT_OFF},
+			    'end':    {'dateTime': ettime+'%s' % GMT_OFF},
+			  
+			}
+
+			e = GCAL.events().insert(calendarId='primary',
+			        sendNotifications=True, body=EVENT).execute()
 			print i,') ', contest_name ,' - startDate : ',  utc_India_hackerrank(contest_start_time['content']),' EndDate : ', utc_India_hackerrank(contest_end_time['content'])
 		else:
 			for y in links.findAll('div', {'class':'contest-status'}):
@@ -84,6 +88,19 @@ def codechefPage(pageurl):
 	for links in tb.findAll('a'):
 		start_date_tag = links.findParent().find_next_sibling('td')
 		end_date_tag = start_date_tag.find_next_sibling('td')
+		#google calender save
+		dt = datetime.strptime(time_converter_codechef(start_date_tag['data-starttime']) , '%H:%M:%S %d-%m-%Y')
+		sttime = dt.strftime("%Y-%m-%dT%H:%M:00")
+		et = datetime.strptime(time_converter_codechef(end_date_tag['data-endtime']) , '%H:%M:%S %d-%m-%Y')
+		ettime = et.strftime("%Y-%m-%dT%H:%M:00")
+		EVENT = {
+			    'summary': links.string,
+			    'start':  {'dateTime': sttime+'%s' % GMT_OFF},
+			    'end':    {'dateTime': ettime+'%s' % GMT_OFF},  
+		}
+
+		e = GCAL.events().insert(calendarId='primary',
+			        sendNotifications=True, body=EVENT).execute()	
 		print i,') ', links.string ,'- startDate : ', time_converter_codechef(start_date_tag['data-starttime']),'endDate : ', time_converter_codechef(end_date_tag['data-endtime'])
 		i = i + 1
 
